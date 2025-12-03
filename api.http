@@ -1,0 +1,18 @@
+### Login to Finsmart API
+POST https://dev-datauploadapi.finsmart.ai/login
+Content-Type: application/json
+
+{
+  "apiKey": "4af72d9b-87a2-4963-a80d-96ce975652b0",
+  "password": "edSXQKQuvJyCpx672JrUPGjULitchi"
+}
+
+### Analyze Data (replace {{token}} with the token from login response)
+# @name analyze
+POST https://dev-datauploadapi.finsmart.ai/ai-insight/analyze-data
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "CompanyGuid": "9489ec9a-9cea-44d6-94f3-d002b4ef341a"
+}
