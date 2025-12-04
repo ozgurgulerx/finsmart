@@ -187,20 +187,28 @@ def print_cfo_month_view_cli(
     company_guid: str,
     month_str: str,
     generate_highlights: bool = True,
+    skip_compute: bool = False,
+    output_dir: str = None,
 ) -> None:
     """
-    Print CFO month view to stdout as JSON.
+    Print CFO month view to stdout as JSON and save reports.
     
     Args:
         company_guid: Finsmart company GUID
         month_str: Month string (YYYY-MM or YYYY-MM-DD)
+        generate_highlights: Generate LLM highlights
+        skip_compute: Skip recomputing KPIs/anomalies
+        output_dir: Directory to save report files (optional)
     """
+    from .cfo_view import format_report_markdown, save_reports_to_files
+    
     # Parse month
     if len(month_str) == 7:  # YYYY-MM
         month = datetime.strptime(month_str + "-01", "%Y-%m-%d").date()
     else:  # YYYY-MM-DD
         month = datetime.strptime(month_str, "%Y-%m-%d").date()
     month = month.replace(day=1)
+    month_short = month.strftime("%Y-%m")
     
     with get_conn() as conn:
         # Find company
@@ -210,15 +218,38 @@ def print_cfo_month_view_cli(
             sys.exit(1)
         
         company_id = company["id"]
+        company_name = company["name"]
         
         # Build CFO view
         view = build_cfo_month_view(
             conn, company_id, month,
-            ensure_computed=True,
+            ensure_computed=not skip_compute,
             generate_highlights=generate_highlights
         )
         
-        # Print as JSON
+        # Display Markdown reports if executive_report exists
+        exec_report = view.get("executive_report")
+        if exec_report:
+            print("\n" + "="*80, file=sys.stderr)
+            print("TÜRKÇE RAPOR", file=sys.stderr)
+            print("="*80, file=sys.stderr)
+            print(format_report_markdown(exec_report, "tr"), file=sys.stderr)
+            
+            print("\n" + "="*80, file=sys.stderr)
+            print("ENGLISH REPORT", file=sys.stderr)
+            print("="*80, file=sys.stderr)
+            print(format_report_markdown(exec_report, "en"), file=sys.stderr)
+            
+            # Save to files if output_dir specified
+            if output_dir:
+                files = save_reports_to_files(
+                    exec_report, company_name, month_short, output_dir
+                )
+                print(f"\n[CFO View] Reports saved:", file=sys.stderr)
+                print(f"  - Turkish: {files['tr']}", file=sys.stderr)
+                print(f"  - English: {files['en']}", file=sys.stderr)
+        
+        # Print JSON to stdout
         print(json.dumps(view, indent=2, ensure_ascii=False, default=str))
 
 
@@ -287,6 +318,8 @@ Examples:
     view_parser.add_argument("--company-guid", required=True, help="Finsmart company GUID")
     view_parser.add_argument("--month", required=True, help="Month (YYYY-MM or YYYY-MM-DD)")
     view_parser.add_argument("--no-highlights", action="store_true", help="Skip LLM highlight generation")
+    view_parser.add_argument("--skip-compute", action="store_true", help="Skip recomputing KPIs/anomalies, just fetch existing")
+    view_parser.add_argument("--output-dir", help="Directory to save report files (TR and EN markdown)")
     
     # list-months command
     months_parser = subparsers.add_parser("list-months", help="List available months")
@@ -335,6 +368,8 @@ Examples:
                 company_guid=args.company_guid,
                 month_str=args.month,
                 generate_highlights=not args.no_highlights,
+                skip_compute=args.skip_compute,
+                output_dir=args.output_dir,
             )
         
         elif args.command == "list-months":

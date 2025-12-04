@@ -28,7 +28,7 @@ def test_openai_reasoning():
         # Test with gpt-5-mini reasoning
         result = client.responses.create(
             model="gpt-5-mini",
-            input="Say 'API connection successful' in Turkish.",
+            input="If 2+2 = 3 and 3+3 = 5 then 4+4 = ?",
             reasoning={"effort": "low"},
             text={"verbosity": "low"},
         )

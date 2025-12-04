@@ -207,7 +207,7 @@ Sadece JSON döndür, başka bir şey yazma."""
 
 def call_reasoning_llm(prompt: str) -> dict:
     """
-    Call OpenAI API to generate explanations.
+    Call OpenAI API to generate explanations using gpt-5-mini with reasoning.
     
     Args:
         prompt: Prompt string
@@ -219,17 +219,15 @@ def call_reasoning_llm(prompt: str) -> dict:
     client = OpenAI(api_key=config.openai_api_key)
     
     try:
-        response = client.chat.completions.create(
-            model=config.openai_reasoning_model,
-            messages=[
-                {"role": "system", "content": "Sen bir finansal analiz asistanısın. Sadece JSON formatında yanıt ver."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.3,
-            max_tokens=500,
+        # Use gpt-5-mini with responses API and reasoning
+        result = client.responses.create(
+            model="gpt-5-mini",
+            input=prompt,
+            reasoning={"effort": "low"},
+            text={"verbosity": "low"},
         )
         
-        raw_text = response.choices[0].message.content.strip()
+        raw_text = result.output_text.strip()
         
         # Try to parse JSON
         # Handle potential markdown code blocks

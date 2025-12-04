@@ -84,7 +84,7 @@ CREATE TABLE IF NOT EXISTS monthly_kpis (
 CREATE INDEX IF NOT EXISTS idx_monthly_kpis_company_month
     ON monthly_kpis (company_id, month);
 
--- Detected anomalies (MoM changes ≥ 20%)
+-- Detected anomalies (smart detection: YoY + Rolling Avg + Z-Score)
 CREATE TABLE IF NOT EXISTS anomalies (
     id             BIGSERIAL PRIMARY KEY,
     company_id     UUID NOT NULL REFERENCES companies(id),
@@ -92,9 +92,10 @@ CREATE TABLE IF NOT EXISTS anomalies (
     metric_name    TEXT NOT NULL,
     prev_value     NUMERIC(18,2),
     curr_value     NUMERIC(18,2) NOT NULL,
-    pct_change     NUMERIC,                 -- (curr - prev) / prev * 100
-    severity_score NUMERIC,                 -- ABS(pct_change)
+    pct_change     NUMERIC,                 -- MoM: (curr - prev) / prev * 100
+    severity_score NUMERIC,                 -- Composite score from detection signals
     status         TEXT NOT NULL DEFAULT 'open',  -- 'open', 'muted', 'confirmed'
+    meta           JSONB,                   -- Detection details: yoy_pct, rolling_pct, zscore, reason
     created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE (company_id, month, metric_name)
 );

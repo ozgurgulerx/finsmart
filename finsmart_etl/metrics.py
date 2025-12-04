@@ -4,6 +4,7 @@ Metrics Computation (Gold Layer): Compute monthly KPIs from transactions.
 Defines metric definitions and computes aggregated KPIs per month.
 """
 
+import json
 from dataclasses import dataclass
 from typing import Optional
 from uuid import UUID
@@ -26,7 +27,7 @@ METRIC_DEFINITIONS: list[MetricDefinition] = [
     MetricDefinition(
         name="net_sales",
         description="Net Sales (Local + Global)",
-        sql_filter="account_code LIKE '1.1%'",
+        sql_filter="account_code LIKE '1.1%%'",
         is_revenue=True,
     ),
     MetricDefinition(
@@ -52,7 +53,7 @@ METRIC_DEFINITIONS: list[MetricDefinition] = [
     MetricDefinition(
         name="advisory_expense",
         description="Advisory/Consulting Expenses",
-        sql_filter="(account_name = 'Advisory' OR coa_name ILIKE '%DANISMAN%')",
+        sql_filter="(account_name = 'Advisory' OR coa_name ILIKE '%%DANISMAN%%')",
     ),
     MetricDefinition(
         name="software_expense",
@@ -62,7 +63,7 @@ METRIC_DEFINITIONS: list[MetricDefinition] = [
     MetricDefinition(
         name="payroll",
         description="Payroll/Personnel Expenses",
-        sql_filter="(account_name = 'Payroll' OR account_name ILIKE '%Personnel%')",
+        sql_filter="(account_name = 'Payroll' OR account_name ILIKE '%%Personnel%%')",
     ),
     MetricDefinition(
         name="marketing",
@@ -163,7 +164,7 @@ def compute_single_metric(
     }
     
     with conn.cursor() as cur:
-        cur.execute(query, (metric.name, str(meta).replace("'", '"'), str(company_id)))
+        cur.execute(query, (metric.name, json.dumps(meta), str(company_id)))
         rows = cur.fetchall()
         conn.commit()
         return len(rows)
