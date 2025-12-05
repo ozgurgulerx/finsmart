@@ -1,8 +1,39 @@
 # Finsmart ETL - AI CFO Backend
 
-A YC-grade financial data pipeline that powers an AI CFO assistant.
+An intelligent financial data pipeline that powers an AI CFO assistant with smart anomaly detection and LLM-powered explanations.
 
-**Reference:** https://docs.google.com/spreadsheets/d/1C1BHvJLBfU8UTEZYlHv08WRO6DZo49s2o0sPGG166xE/edit?gid=0#gid=0
+## 🎯 What This Demo Does
+
+This system automatically analyzes a company's financial data and:
+
+1. **Detects financial anomalies** using a hybrid approach (YoY, rolling averages, Z-scores)
+2. **Explains why** each anomaly was flagged using `gpt-5-nano`
+3. **Analyzes root causes** with detailed contributor breakdowns using `gpt-5-mini`
+4. **Generates executive reports** in Turkish and English as professional Markdown documents
+
+### Example Output
+
+```
+# Eylül 2023 Finansal Anomali Özet Raporu
+
+## Genel Değerlendirme
+Bu dönemde şirketin finansal performansında 11 önemli anomali tespit edilmiştir...
+
+## Tespit Edilen Anomaliler
+
+### 1. Ofis Kirası
+**Değişim:** %21.3 artış
+
+**Neden Anomali?**
+> Yıllık bazda %166.9 artış göstererek ±%30 eşik değerini aştı...
+
+**Kök Neden Analizi:**
+> Artışın ana nedeni AC YAPI INS.'ye yapılan 19.000 TL'lik ödeme...
+
+## Aksiyon Önerileri
+- Kira sözleşmesi gözden geçirilmeli
+- Alternatif ofis seçenekleri değerlendirilmeli
+```
 
 ## Overview
 
@@ -11,9 +42,10 @@ This backend service:
 1. **Ingests** financial data from Finsmart API (Bronze layer)
 2. **Normalizes** transactions into queryable format (Silver layer)
 3. **Computes** monthly KPIs (Gold layer)
-4. **Detects** anomalies when metrics change ≥20% month-over-month
+4. **Detects** anomalies using smart hybrid detection (YoY, rolling avg, Z-score)
 5. **Explains** anomalies using OpenAI reasoning models
-6. **Serves** CFO Month View with evidence for human verification
+6. **Generates** executive reports with actionable recommendations
+7. **Serves** CFO Month View with evidence for human verification
 
 ## Architecture
 
@@ -129,12 +161,28 @@ Generate CFO Month View for a specific month:
 ```bash
 python -m finsmart_etl.runner cfo-view \
     --company-guid YOUR-COMPANY-GUID \
-    --month 2022-09
+    --month 2023-09
 ```
 
-Output is JSON with:
+**Options:**
+- `--skip-compute` - Skip recomputing KPIs/anomalies, use existing data
+- `--no-highlights` - Skip LLM explanation generation
+- `--output-dir ./reports` - Save TR/EN Markdown reports to files
+
+**Example with all options:**
+```bash
+python -m finsmart_etl.runner cfo-view \
+    --company-guid 9489ec9a-9cea-44d6-94f3-d002b4ef341a \
+    --month 2023-09 \
+    --skip-compute \
+    --output-dir ./reports
+```
+
+**Output includes:**
 - `metrics_overview`: All KPIs with MoM changes
-- `anomalies`: Flagged metrics with contributors, explanations, and evidence
+- `anomalies`: Flagged metrics with detection reasoning and root cause analysis
+- `executive_report`: Consolidated report in TR and EN
+- **Saved files:** `report_<company>_2023-09_tr.md` and `report_<company>_2023-09_en.md`
 
 ### List Available Months
 
@@ -203,13 +251,48 @@ This means you can safely re-run the pipeline without duplicating data.
 
 ## Anomaly Detection
 
-An anomaly is flagged when:
-- **|MoM % change| ≥ 20%**
+### Smart Hybrid Detection
 
-For each anomaly:
-1. Top contributors (vendors/customers) are computed
-2. LLM generates Turkish and English explanations
-3. Evidence sample (raw transactions) is preserved
+An anomaly is flagged when ANY of these conditions are met:
+
+| Signal | Threshold | Description |
+|--------|-----------|-------------|
+| **Year-over-Year (YoY)** | ≥ ±30% | Compared to same month last year |
+| **Rolling Average** | ≥ ±25% | Deviation from 3-month trailing average |
+| **Z-Score** | ≥ 2.0 | Statistical outlier (>2 standard deviations) |
+
+### LLM Pipeline
+
+For each detected anomaly:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ 1. DETECTION (Deterministic SQL)                                │
+│    YoY, Rolling Avg, Z-Score calculations                       │
+└─────────────────────┬───────────────────────────────────────────┘
+                      ▼
+┌─────────────────────────────────────────────────────────────────┐
+│ 2. WHY ANOMALY? (gpt-5-nano)                                    │
+│    "Flagged because YoY change of 166.9% exceeded ±30%..."      │
+└─────────────────────┬───────────────────────────────────────────┘
+                      ▼
+┌─────────────────────────────────────────────────────────────────┐
+│ 3. ROOT CAUSE (gpt-5-mini)                                      │
+│    "Increase driven by AC YAPI payment of 19,000 TL (82.2%)..." │
+└─────────────────────┬───────────────────────────────────────────┘
+                      ▼
+┌─────────────────────────────────────────────────────────────────┐
+│ 4. EXECUTIVE REPORT (gpt-5-mini)                                │
+│    Consolidated narrative with action recommendations           │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Output per Anomaly
+
+1. **Detection metadata**: YoY %, rolling %, Z-score, detection reason
+2. **Why anomaly**: LLM explanation of which signals triggered
+3. **Root cause**: LLM analysis of top contributors
+4. **Evidence sample**: Raw transactions for verification
 
 ## Testing
 
@@ -238,11 +321,18 @@ pytest tests/test_anomalies.py::TestAnomalyDetection::test_detect_anomalies
 | `DB_PASSWORD` | (empty) | Database password |
 | `DB_POOL_SIZE` | `5` | Connection pool size |
 | `OPENAI_API_KEY` | - | OpenAI API key (required for explanations) |
-| `OPENAI_REASONING_MODEL` | `gpt-4o-mini` | Model for explanations |
+| `OPENAI_REASONING_MODEL` | `gpt-5-mini` | Model for root cause & executive reports |
 | `FINSMART_BASE_URL` | `https://dev-datauploadapi.finsmart.ai` | API base URL |
 | `API_KEY` | - | Finsmart API key |
 | `PASSWORD` | - | Finsmart password |
 | `COMPANY_GUID` | - | Default company GUID |
+
+## LLM Models Used
+
+| Model | Purpose | Effort |
+|-------|---------|--------|
+| `gpt-5-nano` | Detection reasoning (why anomaly) | Low |
+| `gpt-5-mini` | Root cause analysis, Executive report | Low |
 
 ## Example Output: CFO Month View
 
