@@ -187,34 +187,34 @@ def detect_anomalies(
     return count
 
 
-def explain_anomaly_detection(anomaly: dict) -> str:
+def build_detection_prompt(anomaly: dict) -> str:
     """
-    Use gpt-5-nano to explain why this was flagged as an anomaly.
-    
+    Build the LLM prompt used to explain why a metric was flagged as an anomaly.
+
+    This is factored out so we can export the exact LLM inputs without
+    re-calling the model.
+
     Args:
-        anomaly: Anomaly dict with meta containing detection details
-    
+        anomaly: Anomaly dict with `meta` containing detection details
+
     Returns:
-        str: LLM-generated explanation of why it's an anomaly
+        str: Prompt string
     """
-    config = get_config()
-    client = OpenAI(api_key=config.openai_api_key)
-    
     meta = anomaly.get("meta") or {}
     if isinstance(meta, str):
         meta = json.loads(meta)
     if meta is None:
         meta = {}
-    
+
     # Safely format values that might be None
-    yoy_pct = meta.get('yoy_pct')
-    rolling_pct = meta.get('rolling_pct')
-    zscore = meta.get('zscore')
-    
+    yoy_pct = meta.get("yoy_pct")
+    rolling_pct = meta.get("rolling_pct")
+    zscore = meta.get("zscore")
+
     yoy_str = f"{yoy_pct:.1f}%" if yoy_pct is not None else "N/A"
     rolling_str = f"{rolling_pct:.1f}%" if rolling_pct is not None else "N/A"
     zscore_str = f"{zscore:.2f}" if zscore is not None else "N/A"
-    
+
     prompt = f"""You are a financial analyst. Explain briefly (2 sentences) why this metric was flagged as an anomaly.
 
 METRIC: {anomaly.get('metric_name')}
@@ -231,6 +231,23 @@ DETECTION SIGNALS:
 - Detection Reason: {meta.get('detection_reason', 'unknown')}
 
 Explain in plain English why this is considered anomalous. Be specific about which signals triggered the detection."""
+
+    return prompt
+
+
+def explain_anomaly_detection(anomaly: dict) -> str:
+    """
+    Use gpt-5-nano to explain why this was flagged as an anomaly.
+    
+    Args:
+        anomaly: Anomaly dict with meta containing detection details
+    
+    Returns:
+        str: LLM-generated explanation of why it's an anomaly
+    """
+    config = get_config()
+    client = OpenAI(api_key=config.openai_api_key)
+    prompt = build_detection_prompt(anomaly)
 
     try:
         result = client.responses.create(
@@ -274,6 +291,7 @@ def get_anomalies_for_month(
         cur.execute(
             """
             SELECT 
+                company_id,
                 id, month, metric_name, 
                 prev_value, curr_value, pct_change,
                 severity_score, status, meta, created_at

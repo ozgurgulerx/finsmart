@@ -35,16 +35,16 @@ from .explanations import (
 )
 
 
-def generate_executive_report(
+def build_executive_report_prompt(
     company_name: str,
     month_label: str,
     anomalies: list[dict]
-) -> dict:
+) -> tuple[str, list[dict]]:
     """
-    Generate a consolidated executive report summarizing all anomalies.
-    
-    Uses gpt-5-mini with minimal reasoning to create a coherent narrative.
-    Structure: Complete Turkish report first, then complete English report.
+    Build the LLM prompt for the consolidated executive report.
+
+    This is factored out so we can export the exact LLM inputs without
+    re-calling the model.
     
     Args:
         company_name: Company name
@@ -52,11 +52,8 @@ def generate_executive_report(
         anomalies: List of anomaly details
     
     Returns:
-        dict: Executive report with separate Turkish and English sections
+        Tuple of (prompt string, anomaly_details list)
     """
-    config = get_config()
-    client = OpenAI(api_key=config.openai_api_key)
-    
     # Build detailed anomaly info for prompt
     anomaly_details = []
     for a in anomalies:
@@ -143,7 +140,7 @@ Her rapor şu bölümleri içermeli:
         "root_cause": "Root cause analysis (English)..."
       }}
     ],
-    "action_recommendations": [
+      "action_recommendations": [
       "English action recommendation 1",
       "English action recommendation 2"
     ]
@@ -151,6 +148,37 @@ Her rapor şu bölümleri içermeli:
 }}
 
 Sadece JSON döndür, başka açıklama ekleme."""
+
+    return prompt, anomaly_details
+
+
+def generate_executive_report(
+    company_name: str,
+    month_label: str,
+    anomalies: list[dict]
+) -> dict:
+    """
+    Generate a consolidated executive report summarizing all anomalies.
+    
+    Uses gpt-5-mini with minimal reasoning to create a coherent narrative.
+    Structure: Complete Turkish report first, then complete English report.
+    
+    Args:
+        company_name: Company name
+        month_label: Turkish month label (e.g., "Eylül 2023")
+        anomalies: List of anomaly details
+    
+    Returns:
+        dict: Executive report with separate Turkish and English sections
+    """
+    config = get_config()
+    client = OpenAI(api_key=config.openai_api_key)
+
+    prompt, anomaly_details = build_executive_report_prompt(
+        company_name=company_name,
+        month_label=month_label,
+        anomalies=anomalies,
+    )
 
     try:
         result = client.responses.create(

@@ -25,10 +25,21 @@ from .finsmart_client import FinsmartClient
 from .etl_raw import get_or_create_company, ensure_raw_report, load_from_file
 from .etl_normalize import normalize_raw_report, normalize_all_pending
 from .metrics import compute_monthly_kpis
-from .anomalies import detect_anomalies
+from .anomalies import detect_anomalies, get_anomalies_for_month, build_detection_prompt
 from .contributors import compute_contributors_for_company
-from .explanations import generate_highlights_for_new_anomalies
-from .cfo_view import build_cfo_month_view, get_company_by_guid, get_available_months
+from .explanations import (
+    generate_highlights_for_new_anomalies,
+    build_anomaly_payload,
+    build_prompt,
+)
+from .cfo_view import (
+    build_cfo_month_view,
+    get_company_by_guid,
+    get_available_months,
+    get_anomaly_details,
+    month_label_tr,
+    build_executive_report_prompt,
+)
 
 
 def run_full_pipeline_for_company_period(
@@ -273,6 +284,102 @@ def list_available_months_cli(company_guid: str) -> None:
             print(f"  {m}")
 
 
+def dump_llm_inputs_cli(
+    company_guid: str,
+    month_str: str,
+    output_path: str | None = None,
+) -> None:
+    """
+    Dump all LLM inputs (prompts + structured payloads) for a given company/month.
+
+    This includes:
+    - Anomaly highlight prompts (gpt-5-mini) with their JSON payloads
+    - Detection explanation prompts (gpt-5-nano)
+    - Consolidated executive report prompt (gpt-5-mini)
+    """
+    # Parse month
+    if len(month_str) == 7:  # YYYY-MM
+        month = datetime.strptime(month_str + "-01", "%Y-%m-%d").date()
+    else:  # YYYY-MM-DD
+        month = datetime.strptime(month_str, "%Y-%m-%d").date()
+    month = month.replace(day=1)
+
+    with get_conn() as conn:
+        # Find company
+        company = get_company_by_guid(conn, company_guid)
+        if not company:
+            print(f"Error: Company with GUID {company_guid} not found", file=sys.stderr)
+            sys.exit(1)
+
+        company_id = company["id"]
+
+        # Load raw anomalies for the month
+        anomalies = get_anomalies_for_month(conn, company_id, str(month))
+
+        anomaly_highlight_prompts = []
+        anomaly_detection_prompts = []
+
+        for anomaly in anomalies:
+            anomaly_id = anomaly["id"]
+
+            # Root-cause / highlight explanation prompt
+            payload = build_anomaly_payload(conn, anomaly, include_evidence=True)
+            highlight_prompt = build_prompt(payload)
+            anomaly_highlight_prompts.append({
+                "anomaly_id": anomaly_id,
+                "metric_name": anomaly["metric_name"],
+                "month": str(anomaly["month"]),
+                "payload": payload,
+                "prompt": highlight_prompt,
+            })
+
+            # Detection explanation prompt
+            detection_prompt = build_detection_prompt(anomaly)
+            anomaly_detection_prompts.append({
+                "anomaly_id": anomaly_id,
+                "metric_name": anomaly["metric_name"],
+                "month": str(anomaly["month"]),
+                "prompt": detection_prompt,
+                "meta": anomaly.get("meta"),
+            })
+
+        # Build executive-report prompt using existing anomaly details
+        anomaly_details = get_anomaly_details(
+            conn,
+            company_id,
+            month,
+            generate_missing_highlights=False,
+        )
+        exec_prompt, _ = build_executive_report_prompt(
+            company_name=company["name"],
+            month_label=month_label_tr(month),
+            anomalies=anomaly_details,
+        )
+
+        export = {
+            "company": {
+                "id": str(company_id),
+                "finsmart_guid": company_guid,
+                "name": company["name"],
+                "business_model": company.get("business_model"),
+            },
+            "month": str(month),
+            "month_label_tr": month_label_tr(month),
+            "anomaly_highlight_prompts": anomaly_highlight_prompts,
+            "anomaly_detection_prompts": anomaly_detection_prompts,
+            "executive_report_prompt": exec_prompt,
+        }
+
+        serialized = json.dumps(export, indent=2, ensure_ascii=False, default=str)
+
+        if output_path:
+            with open(output_path, "w", encoding="utf-8") as f:
+                f.write(serialized)
+            print(f"LLM inputs written to {output_path}", file=sys.stderr)
+        else:
+            print(serialized)
+
+
 def main():
     """CLI entrypoint."""
     parser = argparse.ArgumentParser(
@@ -324,6 +431,15 @@ Examples:
     # list-months command
     months_parser = subparsers.add_parser("list-months", help="List available months")
     months_parser.add_argument("--company-guid", required=True, help="Finsmart company GUID")
+
+    # dump-llm-inputs command
+    dump_parser = subparsers.add_parser(
+        "dump-llm-inputs",
+        help="Dump all LLM inputs (prompts + payloads) for a month",
+    )
+    dump_parser.add_argument("--company-guid", required=True, help="Finsmart company GUID")
+    dump_parser.add_argument("--month", required=True, help="Month (YYYY-MM or YYYY-MM-DD)")
+    dump_parser.add_argument("--output", help="Output file path for JSON (defaults to stdout)")
     
     # ping command
     subparsers.add_parser("ping", help="Test database connection")
@@ -374,6 +490,13 @@ Examples:
         
         elif args.command == "list-months":
             list_available_months_cli(args.company_guid)
+        
+        elif args.command == "dump-llm-inputs":
+            dump_llm_inputs_cli(
+                company_guid=args.company_guid,
+                month_str=args.month,
+                output_path=args.output,
+            )
     
     except KeyboardInterrupt:
         print("\nInterrupted")
