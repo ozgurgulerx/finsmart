@@ -469,6 +469,93 @@ Examples:
             )
             print("\nSummary:")
             print(json.dumps(result, indent=2))
+
+            # After a successful full pipeline run, automatically generate and
+            # display the latest CFO executive report, and save it under ./reports
+            # tagged with the generation date. Existing behavior is preserved.
+            try:
+                from .cfo_view import (
+                    get_available_months,
+                    build_cfo_month_view,
+                    get_company_by_guid,
+                    format_report_markdown,
+                    save_reports_to_files,
+                )
+                import os
+
+                with get_conn() as conn:
+                    # Resolve company record from GUID
+                    company = get_company_by_guid(conn, args.company_guid)
+                    if not company:
+                        print(
+                            f"\n[full-pipeline] Skipping CFO report: "
+                            f"company with GUID {args.company_guid} not found.",
+                            file=sys.stderr,
+                        )
+                    else:
+                        company_id = company["finsmart_guid"]
+
+                        # Get the most recent month with data for this company
+                        months = get_available_months(conn, company_id)
+                        if not months:
+                            print(
+                                f"\n[full-pipeline] Skipping CFO report: "
+                                f"no months available for company {company['name']}.",
+                                file=sys.stderr,
+                            )
+                        else:
+                            latest_month_str = months[0]  # list is ordered DESC
+                            latest_month = datetime.strptime(
+                                latest_month_str, "%Y-%m-%d"
+                            ).date()
+
+                            # Build CFO view (use existing computed data, but allow
+                            # highlight generation and executive report)
+                            view = build_cfo_month_view(
+                                conn,
+                                company_id,
+                                latest_month,
+                                ensure_computed=False,
+                                generate_highlights=True,
+                            )
+
+                            exec_report = view.get("executive_report")
+                            if exec_report:
+                                # Display the full TR and EN reports as continuous text
+                                print("\n=== CFO EXECUTIVE REPORT (TR) ===")
+                                print(format_report_markdown(exec_report, "tr"))
+                                print("\n=== CFO EXECUTIVE REPORT (EN) ===")
+                                print(format_report_markdown(exec_report, "en"))
+
+                                # Save reports under ./reports with generation date tag
+                                output_dir = os.path.join(os.getcwd(), "reports")
+                                os.makedirs(output_dir, exist_ok=True)
+
+                                month_short = latest_month.strftime("%Y-%m")
+                                generation_date = datetime.today().strftime("%Y-%m-%d")
+                                tagged_month = f"{month_short}_{generation_date}"
+
+                                files = save_reports_to_files(
+                                    exec_report,
+                                    company["name"],
+                                    tagged_month,
+                                    output_dir,
+                                )
+                                print("\nReports saved:")
+                                print(f"  - Turkish: {files['tr']}")
+                                print(f"  - English: {files['en']}")
+                            else:
+                                print(
+                                    f"\n[full-pipeline] CFO view built but no "
+                                    f"executive_report available for {latest_month_str}.",
+                                    file=sys.stderr,
+                                )
+            except Exception as e:
+                # Do not fail the pipeline if report generation has issues
+                print(
+                    f"\n[full-pipeline] Warning: could not generate CFO report: {e}",
+                    file=sys.stderr,
+                )
         
         elif args.command == "load-file":
             result = run_load_from_file(

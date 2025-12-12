@@ -333,7 +333,7 @@ def generate_highlight_for_anomaly(
 def generate_highlights_for_new_anomalies(
     conn: psycopg.Connection,
     company_id: Optional[UUID] = None,
-    batch_size: int = 20,
+    batch_size: int = 200,
     llm_func=None
 ) -> int:
     """

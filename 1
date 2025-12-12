@@ -1,0 +1,42 @@
+  python -m finsmart_etl.runner full-pipeline \
+    --company-guid 9489ec9a-9cea-44d6-94f3-d002b4ef341a \
+    --start 2022-01-01 \
+    --end 2024-12-31
+
+
+----
+which anomalies are missing an explanation 
+!
+  SELECT a.id, a.month, a.metric_name, a.severity_score
+  FROM anomalies a
+  LEFT JOIN anomaly_highlights ah ON ah.anomaly_id = a.id
+  WHERE a.company_id = '9489ec9a-9cea-44d6-94f3-d002b4ef341a'
+    AND ah.id IS NULL
+  ORDER BY a.month, a.severity_score DESC
+  LIMIT 50;
+
+
+------
+• To generate a CFO view report for a specific month, use the cfo-view command with your company GUID and the target month.
+
+  Example for September 2023:
+
+  cd /Users/ozgurguler/Developer/Projects/finsmart
+  source .env
+  mkdir -p reports
+
+  python -m finsmart_etl.runner cfo-view \
+    --company-guid 9489ec9a-9cea-44d6-94f3-d002b4ef341a \
+    --month 2023-09 \
+    --output-dir ./reports
+
+  - Prints the full CFO Month View JSON to stdout.
+  - Writes TR/EN Markdown reports to ./reports.
+
+  If you want to avoid recomputing KPIs/anomalies and just use existing data, add --skip-compute:
+
+  python -m finsmart_etl.runner cfo-view \
+    --company-guid 9489ec9a-9cea-44d6-94f3-d002b4ef341a \
+    --month 2023-09 \
+    --skip-compute \
+    --output-dir ./reports
