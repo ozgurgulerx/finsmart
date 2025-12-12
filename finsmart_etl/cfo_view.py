@@ -111,6 +111,12 @@ Her rapor şu bölümleri içermeli:
    - Kök neden analizi (root_cause_tr veya root_cause_en kullan)
 4. Aksiyon Önerileri (somut ve uygulanabilir öneriler)
 
+Ek olarak:
+- Türkçe için, raporun tamamını tek parça, birbiriyle uyumlu, yüksek etki düzeyine sahip,
+  büyük danışmanlık şirketleri (Big-5) tarzında yazılmış bir anlatı paragraf seti olarak özetleyen
+  ayrı bir bölüm üret (narrative_tr).
+- İngilizce için, aynı şekilde profesyonel, akıcı ve tutarlı bir anlatı paragraf seti üret (narrative_en).
+
 ÇIKTI FORMATI (JSON):
 {{
   "report_tr": {{
@@ -144,7 +150,9 @@ Her rapor şu bölümleri içermeli:
       "English action recommendation 1",
       "English action recommendation 2"
     ]
-  }}
+  }},
+  "narrative_tr": "Tüm raporu tek parça, tutarlı ve yüksek etkili bir anlatı olarak özetleyen Türkçe paragraf(lar)...",
+  "narrative_en": "Full report summarized as a single coherent, high-impact English narrative..."
 }}
 
 Sadece JSON döndür, başka açıklama ekleme."""
@@ -232,6 +240,19 @@ def generate_executive_report(
                 "anomalies": anomaly_items_en,
                 "action_recommendations": ["Detailed review recommended"]
             },
+            # Simple fallback narratives when LLM JSON parsing fails
+            "narrative_tr": (
+                f"{month_label} döneminde toplam {len(anomalies)} finansal anomali tespit edilmiştir. "
+                "Bu anomaliler özellikle gelir ve gider kalemlerindeki olağandışı sıçramalar ile "
+                "yoğunlaşan müşteri ve tedarikçi işlemlerinden kaynaklanmaktadır. Detaylı inceleme "
+                "ve gerekli düzeltmelerin yapılması önerilmektedir."
+            ),
+            "narrative_en": (
+                f"During {month_label}, a total of {len(anomalies)} financial anomalies were detected. "
+                "These anomalies are primarily driven by unusual spikes in revenue and expense items, "
+                "as well as highly concentrated customer and supplier transactions. A detailed review "
+                "and appropriate corrective actions are recommended."
+            ),
             "error": f"Could not parse LLM response: {e}"
         }
     except Exception as e:
@@ -712,6 +733,20 @@ def format_report_markdown(report: dict, language: str = "tr") -> str:
         
         for action in actions:
             lines.append(f"- {action}")
+        lines.append("")
+
+    # Narrative section (continuous executive narrative)
+    narrative_key = "narrative_tr" if language == "tr" else "narrative_en"
+    narrative_text = report.get(narrative_key, "")
+    if narrative_text:
+        lines.append("---")
+        lines.append("")
+        if language == "tr":
+            lines.append("## Yönetici Özeti (Anlatı Formatı)")
+        else:
+            lines.append("## Executive Narrative Summary")
+        lines.append("")
+        lines.append(narrative_text)
         lines.append("")
     
     # Footer
