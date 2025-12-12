@@ -123,7 +123,12 @@ def build_anomaly_payload(
     month_date = anomaly["month"]
     if isinstance(month_date, str):
         month_date = date.fromisoformat(month_date)
-    
+
+    # Prepare percentage change with controlled precision for better readability
+    pct_change_value = None
+    if anomaly["pct_change"]:
+        pct_change_value = round(float(anomaly["pct_change"]), 1)
+
     payload = {
         "company": {
             "name": company.get("name", "Unknown"),
@@ -136,7 +141,7 @@ def build_anomaly_payload(
             "month_label_tr": month_label_tr(month_date),
             "prev_value": float(anomaly["prev_value"]) if anomaly["prev_value"] else None,
             "curr_value": float(anomaly["curr_value"]),
-            "pct_change": float(anomaly["pct_change"]) if anomaly["pct_change"] else None,
+            "pct_change": pct_change_value,
         },
         "contributors": [
             {
@@ -185,7 +190,7 @@ def build_prompt(payload: dict) -> str:
 Aşağıdaki finansal anomali hakkında kısa ve net bir açıklama yaz.
 
 KURALLAR:
-1. Sayıları ASLA değiştirme, verilen değerleri kullan.
+1. Sayıları değiştirme, sadece yüzde oranlarını en yakın tek ondalık haneye yuvarla (örnek: %1513.2, %73.1).
 2. Türkçe açıklama için doğal ve akıcı bir dil kullan.
 3. İngilizce açıklama için profesyonel ve özlü bir dil kullan.
 4. Her açıklama 2-3 cümle olsun.
