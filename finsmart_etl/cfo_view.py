@@ -444,14 +444,16 @@ def get_anomaly_details(
         if isinstance(meta, str):
             import json
             meta = json.loads(meta)
-        
-        # Get LLM explanation of why this is an anomaly
+
+        # Optionally call gpt-5-nano for detection reasoning, but do not use its
+        # output in the current flow. This keeps the code path available without
+        # surfacing the explanation in reports.
         detection_reasoning = None
         if generate_missing_highlights and meta:
             print(f"    - Generating detection reasoning (gpt-5-nano)...", file=sys.stderr)
             try:
-                detection_reasoning = explain_anomaly_detection(anomaly)
-                print(f"    - ✓ Detection reasoning generated", file=sys.stderr)
+                _ = explain_anomaly_detection(anomaly)
+                print(f"    - ✓ Detection reasoning generated (not displayed)", file=sys.stderr)
             except Exception as e:
                 print(f"    - ✗ Could not generate detection reasoning: {e}", file=sys.stderr)
         
