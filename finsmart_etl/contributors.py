@@ -167,7 +167,7 @@ def compute_contributors_for_company(
     
     Args:
         conn: Database connection
-        company_id: Internal company UUID
+        company_id: Company GUID
     
     Returns:
         int: Total number of contributors computed
@@ -237,7 +237,7 @@ def get_evidence_transactions(
     
     Args:
         conn: Database connection
-        company_id: Internal company UUID
+        company_id: Company GUID
         month: Month (YYYY-MM-DD format)
         metric_name: Name of the metric
         limit: Maximum number of transactions to return

@@ -217,7 +217,7 @@ def get_date_range_from_transactions(
     
     Args:
         conn: Database connection
-        company_id: Internal company UUID
+        company_id: Company GUID
     
     Returns:
         Tuple of (min_date, max_date) or (None, None) if no transactions

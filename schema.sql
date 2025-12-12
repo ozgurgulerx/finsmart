@@ -11,8 +11,8 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 -- Companies (tenants)
 CREATE TABLE IF NOT EXISTS companies (
-    id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    finsmart_guid  UUID UNIQUE NOT NULL,
+    -- Use external Finsmart GUID as the *only* identifier
+    finsmart_guid  UUID PRIMARY KEY,
     name           TEXT NOT NULL,
     business_model TEXT,
     created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS companies (
 -- Raw JSON payloads (append-only audit trail)
 CREATE TABLE IF NOT EXISTS raw_reports (
     id           BIGSERIAL PRIMARY KEY,
-    company_id   UUID NOT NULL REFERENCES companies(id),
+    company_id   UUID NOT NULL REFERENCES companies(finsmart_guid),
     period_start DATE NOT NULL,
     period_end   DATE NOT NULL,
     payload      JSONB NOT NULL,
@@ -43,7 +43,7 @@ UNIQUE (company_id, period_start, period_end);
 
 CREATE TABLE IF NOT EXISTS transactions (
     id              BIGSERIAL PRIMARY KEY,
-    company_id      UUID NOT NULL REFERENCES companies(id),
+    company_id      UUID NOT NULL REFERENCES companies(finsmart_guid),
     tx_date         DATE NOT NULL,
     month           DATE NOT NULL,  -- first of month (e.g. 2025-09-01)
     account_code    TEXT NOT NULL,  -- e.g. '2.5.2'
@@ -73,7 +73,7 @@ CREATE INDEX IF NOT EXISTS idx_transactions_source_report
 -- Monthly KPIs (precomputed metrics)
 CREATE TABLE IF NOT EXISTS monthly_kpis (
     id          BIGSERIAL PRIMARY KEY,
-    company_id  UUID NOT NULL REFERENCES companies(id),
+    company_id  UUID NOT NULL REFERENCES companies(finsmart_guid),
     month       DATE NOT NULL,
     metric_name TEXT NOT NULL,         -- 'net_sales', 'advisory_expense', etc.
     value       NUMERIC(18,2) NOT NULL,
@@ -87,7 +87,7 @@ CREATE INDEX IF NOT EXISTS idx_monthly_kpis_company_month
 -- Detected anomalies (smart detection: YoY + Rolling Avg + Z-Score)
 CREATE TABLE IF NOT EXISTS anomalies (
     id             BIGSERIAL PRIMARY KEY,
-    company_id     UUID NOT NULL REFERENCES companies(id),
+    company_id     UUID NOT NULL REFERENCES companies(finsmart_guid),
     month          DATE NOT NULL,
     metric_name    TEXT NOT NULL,
     prev_value     NUMERIC(18,2),

@@ -52,7 +52,7 @@ def test_company_id(db_conn):
             """
             INSERT INTO companies (finsmart_guid, name, business_model)
             VALUES (%s, 'Test Company', 'B2B SaaS')
-            RETURNING id
+            RETURNING finsmart_guid
             """,
             (company_guid,)
         )

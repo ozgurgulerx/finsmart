@@ -33,24 +33,24 @@ def get_or_create_company(
         business_model: Business model description
     
     Returns:
-        UUID: Internal company ID
+        UUID: Company GUID (primary key)
     """
     with conn.cursor() as cur:
-        # Try to find existing
+        # Try to find existing by Finsmart GUID
         cur.execute(
-            "SELECT id FROM companies WHERE finsmart_guid = %s",
+            "SELECT finsmart_guid FROM companies WHERE finsmart_guid = %s",
             (finsmart_guid,)
         )
         row = cur.fetchone()
         if row:
             return row[0]
         
-        # Create new
+        # Create new using Finsmart GUID as the primary key
         cur.execute(
             """
             INSERT INTO companies (finsmart_guid, name, business_model)
             VALUES (%s, %s, %s)
-            RETURNING id
+            RETURNING finsmart_guid
             """,
             (finsmart_guid, name, business_model)
         )
@@ -69,7 +69,7 @@ def get_existing_raw_report_id(
     
     Args:
         conn: Database connection
-        company_id: Internal company UUID
+        company_id: Company GUID
         period_start: Report period start date
         period_end: Report period end date
     
@@ -102,7 +102,7 @@ def ingest_report(
     
     Args:
         conn: Database connection
-        company_id: Internal company UUID
+        company_id: Company GUID
         period_start: Report period start date
         period_end: Report period end date
         payload: Raw JSON payload from Finsmart API

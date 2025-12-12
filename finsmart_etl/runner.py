@@ -228,7 +228,8 @@ def print_cfo_month_view_cli(
             print(f"Error: Company with GUID {company_guid} not found", file=sys.stderr)
             sys.exit(1)
         
-        company_id = company["id"]
+        # Use the Finsmart GUID as the company identifier everywhere
+        company_id = company["finsmart_guid"]
         company_name = company["name"]
         
         # Build CFO view
@@ -277,7 +278,7 @@ def list_available_months_cli(company_guid: str) -> None:
             print(f"Error: Company with GUID {company_guid} not found", file=sys.stderr)
             sys.exit(1)
         
-        months = get_available_months(conn, company["id"])
+        months = get_available_months(conn, company["finsmart_guid"])
         
         print(f"Available months for {company['name']}:")
         for m in months:
@@ -311,7 +312,7 @@ def dump_llm_inputs_cli(
             print(f"Error: Company with GUID {company_guid} not found", file=sys.stderr)
             sys.exit(1)
 
-        company_id = company["id"]
+        company_id = company["finsmart_guid"]
 
         # Load raw anomalies for the month
         anomalies = get_anomalies_for_month(conn, company_id, str(month))

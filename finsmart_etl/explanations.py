@@ -111,10 +111,10 @@ def build_anomaly_payload(
     # Get contributors
     contributors = get_contributors_for_anomaly(conn, anomaly["id"])
     
-    # Get company info
+    # Get company info (lookup by Finsmart GUID, which is now the primary key)
     with conn.cursor(row_factory=dict_row) as cur:
         cur.execute(
-            "SELECT name, business_model FROM companies WHERE id = %s",
+            "SELECT name, business_model FROM companies WHERE finsmart_guid = %s",
             (str(anomaly["company_id"]),)
         )
         company = cur.fetchone() or {}

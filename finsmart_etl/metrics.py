@@ -132,7 +132,7 @@ def compute_single_metric(
     
     Args:
         conn: Database connection
-        company_id: Internal company UUID
+        company_id: Company GUID
         metric: Metric definition to compute
     
     Returns:
@@ -176,7 +176,7 @@ def compute_monthly_kpis(conn: psycopg.Connection, company_id: UUID) -> dict[str
     
     Args:
         conn: Database connection
-        company_id: Internal company UUID
+        company_id: Company GUID
     
     Returns:
         dict: Metric name -> number of rows upserted
@@ -197,7 +197,7 @@ def compute_total_revenue(conn: psycopg.Connection, company_id: UUID) -> int:
     
     Args:
         conn: Database connection
-        company_id: Internal company UUID
+        company_id: Company GUID
     
     Returns:
         int: Number of rows upserted
@@ -238,7 +238,7 @@ def compute_total_expenses(conn: psycopg.Connection, company_id: UUID) -> int:
     
     Args:
         conn: Database connection
-        company_id: Internal company UUID
+        company_id: Company GUID
     
     Returns:
         int: Number of rows upserted

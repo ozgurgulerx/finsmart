@@ -40,7 +40,7 @@ def detect_anomalies(
     
     Args:
         conn: Database connection
-        company_id: Internal company UUID
+        company_id: Company GUID
         yoy_threshold: YoY percentage threshold
         rolling_threshold: Rolling average deviation threshold
     
@@ -281,7 +281,7 @@ def get_anomalies_for_month(
     
     Args:
         conn: Database connection
-        company_id: Internal company UUID
+        company_id: Company GUID
         month: Month as string (YYYY-MM-DD, first of month)
     
     Returns:

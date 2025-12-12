@@ -258,7 +258,7 @@ def get_company_info(conn: psycopg.Connection, company_id: UUID) -> dict:
     
     Args:
         conn: Database connection
-        company_id: Internal company UUID
+        company_id: Company GUID (primary key)
     
     Returns:
         dict: Company info
@@ -266,9 +266,9 @@ def get_company_info(conn: psycopg.Connection, company_id: UUID) -> dict:
     with conn.cursor(row_factory=dict_row) as cur:
         cur.execute(
             """
-            SELECT id, finsmart_guid, name, business_model, created_at
+            SELECT finsmart_guid, name, business_model, created_at
             FROM companies
-            WHERE id = %s
+            WHERE finsmart_guid = %s
             """,
             (str(company_id),)
         )
@@ -288,7 +288,7 @@ def get_metrics_overview(
     
     Args:
         conn: Database connection
-        company_id: Internal company UUID
+        company_id: Company GUID
         month: Target month (first of month)
     
     Returns:
@@ -374,7 +374,7 @@ def get_anomaly_details(
     
     Args:
         conn: Database connection
-        company_id: Internal company UUID
+        company_id: Company GUID
         month: Target month
         generate_missing_highlights: If True, generate highlights on-the-fly
     
@@ -533,7 +533,7 @@ def build_cfo_month_view(
     
     Args:
         conn: Database connection
-        company_id: Internal company UUID
+        company_id: Company GUID (primary key)
         month: Target month (will be normalized to first of month)
         ensure_computed: If True, run compute pipeline first (if needed)
         generate_highlights: If True, generate missing highlights
@@ -609,7 +609,8 @@ def build_cfo_month_view(
     
     return {
         "company": {
-            "id": str(company["id"]),
+            # Expose the Finsmart GUID as the single canonical identifier
+            "id": str(company["finsmart_guid"]),
             "finsmart_guid": str(company["finsmart_guid"]),
             "name": company["name"],
             "business_model": company["business_model"],
@@ -772,7 +773,7 @@ def get_available_months(
     
     Args:
         conn: Database connection
-        company_id: Internal company UUID
+        company_id: Company GUID
     
     Returns:
         List of month strings (YYYY-MM-DD format)
